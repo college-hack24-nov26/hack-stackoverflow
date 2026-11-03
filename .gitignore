@@ -3,3 +3,6 @@ venv/
 __pycache__/
 *.pyc
 .env
+
+# AVAQ camera history
+history/

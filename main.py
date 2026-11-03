@@ -1,6 +1,8 @@
+
 import cv2
 import keyboard
 import time
+import threading
 
 from modules.camera import Camera
 from modules.audio import AudioRecorder
@@ -8,120 +10,240 @@ from modules.speech_recognition import SpeechRecognizer
 from modules.vision_ai import VisionAI
 from modules.tts import TextToSpeech
 
+from pathlib import Path
+from datetime import datetime
 
+
+# Shared application state
+state = {
+    "running": True,
+    "recording": False,
+    "processing": False,
+    "frame": None,
+    "annotated_frame": None,
+    "frame_id": 0,
+    "detected_objects": []
+}
+
+lock = threading.Lock()
+
+
+# -----------------------------------------
+# YOLO BACKGROUND DETECTION
+# -----------------------------------------
+def yolo_worker(camera):
+
+    last_frame_id = -1
+
+    while state["running"]:
+
+        with lock:
+            frame = state["frame"]
+            frame_id = state["frame_id"]
+
+        if frame is None or frame_id == last_frame_id:
+            time.sleep(0.005)
+            continue
+
+        last_frame_id = frame_id
+
+        try:
+            annotated, objects = camera.detect(frame)
+
+            with lock:
+                state["annotated_frame"] = annotated
+                state["detected_objects"] = objects
+
+        except Exception as e:
+            print("YOLO Error:", e)
+
+
+# -----------------------------------------
+# AI QUESTION PROCESSING
+# -----------------------------------------
+def process_question(audio, image, whisper, qwen, tts):
+
+    try:
+
+        print("\nTranscribing...")
+
+        question = whisper.transcribe(audio)
+
+        print("AVAQ HEARD:", question)
+
+        if not question:
+            print("No speech detected.")
+            return
+
+        print("\nQwen is analyzing...")
+
+        answer = qwen.ask(image, question)
+
+        print("\nAVAQ:", answer)
+
+        tts.speak(answer)
+
+    except Exception as e:
+        print("AI Processing Error:", e)
+
+    finally:
+
+        with lock:
+            state["processing"] = False
+
+        print("\nAVAQ READY - Hold SPACE to speak.")
+
+
+#### for history of captured images 
+# -----------------------------------------
+# SAVE CAMERA FRAME
+# -----------------------------------------
+def save_frame(image):
+
+    history_dir = Path("history")
+    history_dir.mkdir(exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+
+    # Timestamped history image
+    history_path = history_dir / f"{timestamp}.jpg"
+
+    # Latest captured image
+    last_frame_path = history_dir / "last_frame.jpg"
+
+    cv2.imwrite(str(history_path), image)
+    cv2.imwrite(str(last_frame_path), image)
+
+    print(f"Image saved: {history_path}")
+
+    return history_path
+
+# -----------------------------------------
+# MAIN APPLICATION
+# -----------------------------------------
 def main():
 
     print("=" * 50)
-    print("              AVAQ AI ASSISTANT")
+    print("             AVAQ AI ASSISTANT")
     print("=" * 50)
 
     camera = Camera()
     recorder = AudioRecorder()
+
     whisper = SpeechRecognizer(model_size="base")
     qwen = VisionAI(model="qwen3-vl:2b")
     tts = TextToSpeech()
 
     camera.start()
 
+    cv2.namedWindow("AVAQ AI Assistant", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("AVAQ AI Assistant", 1000, 700)
+
+    # Start YOLO in background
+    threading.Thread(
+        target=yolo_worker,
+        args=(camera,),
+        daemon=True
+    ).start()
+
     print("\nAVAQ READY")
     print("Hold SPACE to speak.")
-    print("Release SPACE to submit your question.")
-    print("Press ESC to exit.")
+    print("Release SPACE to submit.")
+    print("Press Q to exit.")
 
-    recording = False
-    previous_space_state = False
+    previous_space = False
 
     try:
 
-        while True:
+        while state["running"]:
 
-            # Continuously capture webcam frames
+            # ---------------------------------
+            # LIVE CAMERA
+            # ---------------------------------
             frame = camera.get_frame()
 
             if frame is None:
                 continue
 
+            with lock:
+                state["frame"] = frame.copy()
+                state["frame_id"] += 1
 
-            # Continuous YOLO detection
-            annotated_frame, objects = camera.detect(frame)
+                display_frame = state["annotated_frame"]
 
-            # Display detection boxes
-            cv2.imshow("AVAQ AI Assistant", annotated_frame)
-
-
+            # Show latest YOLO result
+            if display_frame is not None:
+                cv2.imshow("AVAQ AI Assistant", display_frame)
+            else:
+                cv2.imshow("AVAQ AI Assistant", frame)
 
             key = cv2.waitKey(1) & 0xFF
 
-            if key == 27:
+            if key == ord("q") or key == 27:
                 break
 
-            # Detect SPACE press/release
+            # ---------------------------------
+            # SPACEBAR RECORDING
+            # ---------------------------------
             space_pressed = keyboard.is_pressed("space")
 
-            # SPACE pressed
-            if space_pressed and not previous_space_state:
+            # Start recording
+            if space_pressed and not previous_space:
 
-                recording = True
+                with lock:
+                    busy = state["processing"]
 
-                recorder.start()
+                if not busy:
 
-                print("\nListening...")
+                    recorder.start()
+                    state["recording"] = True
 
-            # SPACE released
-            if not space_pressed and previous_space_state:
+                    print("\nListening...")
 
-                if recording:
+                else:
 
-                    recording = False
+                    print("\nAVAQ is processing your previous question.")
 
-                    # Stop recording
+            # Stop recording
+            if not space_pressed and previous_space:
+
+                if state["recording"]:
+
+                    state["recording"] = False
+
                     audio = recorder.stop()
 
-                    print("\nRecording stopped.")
+                    # Capture current live frame
+                    
+                    current_frame = frame.copy()
+                    
+                    # Save captured image to history
+                
+                    save_frame(current_frame)
 
-                    # Capture CURRENT webcam frame
-                    current_frame = camera.get_frame()
+                    if audio is not None:
 
-                    if current_frame is None:
-                        current_frame = frame
+                        with lock:
+                            state["processing"] = True
 
-                    # Speech recognition
-                    print("Transcribing...")
-
-                    question = whisper.transcribe(audio)
-
-                    print("\nYOU:", question)
-
-                    if question:
-
-                        # Send current frame + question to Qwen
-                        print("\nQwen is analyzing the image...")
-
-                        try:
-
-                            answer = qwen.ask(
+                        threading.Thread(
+                            target=process_question,
+                            args=(
+                                audio,
                                 current_frame,
-                                question
-                            )
-
-                            print("\nAVAQ:", answer)
-
-                            # Speak response
-                            tts.speak(answer)
-
-                        except Exception as e:
-
-                            print("Qwen error:", e)
+                                whisper,
+                                qwen,
+                                tts
+                            ),
+                            daemon=True
+                        ).start()
 
                     else:
+                        print("No audio recorded.")
 
-                        print("No speech detected.")
+            previous_space = space_pressed
 
-                    print("\nAVAQ READY")
-
-            previous_space_state = space_pressed
-
-            time.sleep(0.01)
+            time.sleep(0.005)
 
     except KeyboardInterrupt:
 
@@ -129,10 +251,14 @@ def main():
 
     finally:
 
-        if recording:
+        state["running"] = False
+
+        if state["recording"]:
             recorder.stop()
 
         camera.stop()
+
+        cv2.destroyAllWindows()
 
         print("AVAQ shutdown complete.")
 
