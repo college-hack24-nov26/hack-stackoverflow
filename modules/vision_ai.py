@@ -8,7 +8,7 @@ class VisionAI:
         self.model = model
         print("Qwen Vision AI initialized.")
 
-    def ask(self, image, question):
+    def ask(self, image, question, objects_text=""):
 
         if image is None:
             return "I can't see the image."
@@ -22,9 +22,18 @@ class VisionAI:
 
         image_bytes = encoded_image.tobytes()
 
+        hint = ""
+        if objects_text:
+            hint = (
+                f"Object detector hint: {objects_text}.\n"
+                "The hint may be incomplete or wrong. "
+                "If it conflicts with the image, trust the image.\n"
+            )
+
         prompt = f"""
 You are AVAQ, a concise visual assistant.
 
+{hint}
 Question: {question}
 
 Instructions:
@@ -41,17 +50,28 @@ Instructions:
             print("Sending image to Qwen...")
 
             response = ollama.chat(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                        "images": [image_bytes]
-                    }
+                 model=self.model,
+                 messages=[
+                      {
+                           "role": "user",
+                           "content": prompt,
+                           "images": [image_bytes]
+                      }
                 ],
-                options={"temperature": 0.2, "num_predict": 512},
-                think=False
+                options={
+                     "temperature": 0.2,
+                     "num_predict": 256
+                },
+                think=False,
+                keep_alive="30m"
             )
+            answer = response.message.content
+            if not answer or not answer.strip():
+                 print("Qwen content empty.")
+                 print("Thinking:", getattr(response.message, "thinking", None))
+                 print("Done reason:", getattr(response, "done_reason", None))
+                 return "I couldn't generate an answer. Please try again."
+            return answer.strip()
 
             # SDK response handling
             message = response.message

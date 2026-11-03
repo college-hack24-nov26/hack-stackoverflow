@@ -65,7 +65,8 @@ class Camera:
 
             detected_objects.append({
                 "name": name,
-                "confidence": confidence
+                "confidence": confidence,
+                "box": tuple(int(v) for v in box.xyxy[0].tolist())
             })
 
         return annotated_frame, detected_objects
@@ -76,3 +77,31 @@ class Camera:
             self.cap.release()
 
         cv2.destroyAllWindows()
+
+
+def summarize_objects(objects, frame_width=640):
+    """Turn YOLO detections into a short text hint for Qwen."""
+    if not objects:
+        return ""
+
+    groups = {}
+
+    for obj in objects:
+        x1, _, x2, _ = obj["box"]
+        center = (x1 + x2) / 2 / frame_width
+
+        if center < 0.33:
+            position = "left"
+        elif center < 0.66:
+            position = "center"
+        else:
+            position = "right"
+
+        groups.setdefault(obj["name"], []).append(position)
+
+    parts = [
+        f"{len(positions)} {name} ({', '.join(positions)})"
+        for name, positions in groups.items()
+    ]
+
+    return "; ".join(parts)

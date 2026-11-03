@@ -4,7 +4,7 @@ import keyboard
 import time
 import threading
 
-from modules.camera import Camera
+from modules.camera import Camera, summarize_objects
 from modules.audio import AudioRecorder
 from modules.speech_recognition import SpeechRecognizer
 from modules.vision_ai import VisionAI
@@ -37,7 +37,11 @@ def yolo_worker(camera):
 
     while state["running"]:
 
+
         with lock:
+            if state["processing"]:
+                time.sleep(0.05)
+                continue
             frame = state["frame"]
             frame_id = state["frame_id"]
 
@@ -61,7 +65,7 @@ def yolo_worker(camera):
 # -----------------------------------------
 # AI QUESTION PROCESSING
 # -----------------------------------------
-def process_question(audio, image, whisper, qwen, tts):
+def process_question(audio, image, objects_text, whisper, qwen, tts):
 
     try:
 
@@ -77,7 +81,11 @@ def process_question(audio, image, whisper, qwen, tts):
 
         print("\nQwen is analyzing...")
 
-        answer = qwen.ask(image, question)
+        answer = qwen.ask(
+            image,
+            question,
+            objects_text=objects_text
+        )
 
         print("\nAVAQ:", answer)
 
@@ -93,11 +101,11 @@ def process_question(audio, image, whisper, qwen, tts):
 
         print("\nAVAQ READY - Hold SPACE to speak.")
 
-
 #### for history of captured images 
 # -----------------------------------------
 # SAVE CAMERA FRAME
 # -----------------------------------------
+
 def save_frame(image):
 
     history_dir = Path("history")
@@ -163,6 +171,7 @@ def main():
             frame = camera.get_frame()
 
             if frame is None:
+                time.sleep(0.01)
                 continue
 
             with lock:
@@ -170,13 +179,13 @@ def main():
                 state["frame_id"] += 1
 
                 display_frame = state["annotated_frame"]
-
-            # Show latest YOLO result
-            if display_frame is not None:
-                cv2.imshow("AVAQ AI Assistant", display_frame)
-            else:
+                processing = state["processing"]
+                
+            # Keep camera preview LIVE during Qwen processing
+            if processing or display_frame is None:
                 cv2.imshow("AVAQ AI Assistant", frame)
-
+            else:
+                cv2.imshow("AVAQ AI Assistant", display_frame)
             key = cv2.waitKey(1) & 0xFF
 
             if key == ord("q") or key == 27:
@@ -216,6 +225,11 @@ def main():
                     # Capture current live frame
                     
                     current_frame = frame.copy()
+                    with lock:
+
+                        objects_snapshot = list(state["detected_objects"])
+                    objects_text = summarize_objects(objects_snapshot)
+                    print("YOLO hint:", objects_text or "(nothing detected)")
                     
                     # Save captured image to history
                 
@@ -231,6 +245,7 @@ def main():
                             args=(
                                 audio,
                                 current_frame,
+                                objects_text,
                                 whisper,
                                 qwen,
                                 tts
