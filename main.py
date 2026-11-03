@@ -41,8 +41,14 @@ def main():
             if frame is None:
                 continue
 
-            # Display live camera
-            cv2.imshow("AVAQ AI Assistant", frame)
+
+            # Continuous YOLO detection
+            annotated_frame, objects = camera.detect(frame)
+
+            # Display detection boxes
+            cv2.imshow("AVAQ AI Assistant", annotated_frame)
+
+
 
             key = cv2.waitKey(1) & 0xFF
 

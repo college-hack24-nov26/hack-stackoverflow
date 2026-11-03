@@ -1,4 +1,6 @@
 import cv2
+from ultralytics import YOLO
+from pathlib import Path
 
 
 class Camera:
@@ -6,13 +8,23 @@ class Camera:
     def __init__(self, camera_index=0):
 
         self.camera_index = camera_index
+
+        model_path = Path("models/yolo26n.pt")
+
+        if not model_path.exists():
+            raise FileNotFoundError(
+                f"YOLO model not found: {model_path}"
+            )
+
+        print("Loading YOLO26...")
+
+        self.model = YOLO(str(model_path))
+
         self.cap = None
 
     def start(self):
 
-        self.cap = cv2.VideoCapture(
-            self.camera_index
-        )
+        self.cap = cv2.VideoCapture(self.camera_index)
 
         if not self.cap.isOpened():
             raise RuntimeError("Unable to open webcam")
@@ -24,9 +36,6 @@ class Camera:
 
     def get_frame(self):
 
-        if self.cap is None:
-            return None
-
         success, frame = self.cap.read()
 
         if not success:
@@ -34,11 +43,36 @@ class Camera:
 
         return frame
 
+    def detect(self, frame):
+
+        results = self.model.predict(
+            frame,
+            imgsz=640,
+            conf=0.35,
+            verbose=False
+        )
+
+        annotated_frame = results[0].plot()
+
+        detected_objects = []
+
+        for box in results[0].boxes:
+
+            class_id = int(box.cls[0])
+            confidence = float(box.conf[0])
+
+            name = self.model.names[class_id]
+
+            detected_objects.append({
+                "name": name,
+                "confidence": confidence
+            })
+
+        return annotated_frame, detected_objects
+
     def stop(self):
 
         if self.cap is not None:
-
             self.cap.release()
-            self.cap = None
 
         cv2.destroyAllWindows()
