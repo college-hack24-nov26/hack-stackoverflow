@@ -1,1 +1,2 @@
-# TEMPLATE
+# AVAQ -AI visual assistance and querying 
+
