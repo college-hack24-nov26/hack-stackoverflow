@@ -202,8 +202,8 @@ def main():
 
             key = cv2.waitKey(1) & 0xFF
             # QUIT AVAQ
-            if key == ord("q") or key == 27:
-                break
+            # if key == ord("q") or key == 27:
+            #     break
             # SWITCH CAMERA USING C
             if key == ord("c"):
                 current_index = camera.camera_index

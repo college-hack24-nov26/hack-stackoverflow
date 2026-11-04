@@ -1,11 +1,27 @@
-import sys
-from pathlib import Path
 
-# Project root ko Python path mein add karo
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import pyttsx3
+import time
 
-from modules.tts import TextToSpeech
+print("Initializing TTS...")
 
-tts = TextToSpeech()
+engine = pyttsx3.init("sapi5")
+engine.setProperty("rate", 175)
+engine.setProperty("volume", 1.0)
 
-tts.speak("Hello! I am AVAQ. I can see two people in the room.")
+print("Speaking 1...")
+engine.say("Hello. This is AVAQ.")
+engine.runAndWait()
+
+time.sleep(1)
+
+print("Speaking 2...")
+engine.say("Second speech test.")
+engine.runAndWait()
+
+time.sleep(1)
+
+print("Speaking 3...")
+engine.say("Third speech test.")
+engine.runAndWait()
+
+print("TTS test completed.")
