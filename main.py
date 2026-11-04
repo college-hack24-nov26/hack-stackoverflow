@@ -136,6 +136,7 @@ def main():
     print("=" * 50)
 
     camera = Camera()
+    camera_indexes = [0, 1]
     recorder = AudioRecorder()
 
     whisper = SpeechRecognizer(model_size="base")
@@ -146,6 +147,12 @@ def main():
 
     cv2.namedWindow("AVAQ AI Assistant", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("AVAQ AI Assistant", 1000, 700)
+
+    print("\n========== AVAQ CONTROLS ==========")
+    print("HOLD SPACE : Ask AVAQ a question")
+    print("C          : Switch camera")
+    print("Q / ESC    : Exit AVAQ")
+    print("=================================\n")
 
     # Start YOLO in background
     threading.Thread(
@@ -186,10 +193,39 @@ def main():
                 cv2.imshow("AVAQ AI Assistant", frame)
             else:
                 cv2.imshow("AVAQ AI Assistant", display_frame)
+                
             key = cv2.waitKey(1) & 0xFF
 
             if key == ord("q") or key == 27:
                 break
+
+
+            key = cv2.waitKey(1) & 0xFF
+            # QUIT AVAQ
+            if key == ord("q") or key == 27:
+                break
+            # SWITCH CAMERA USING C
+            if key == ord("c"):
+                current_index = camera.camera_index
+                try:
+                    current_position = camera_indexes.index(current_index)
+                except ValueError:
+                    current_position = 0
+                
+                next_position = (current_position + 1) % len(camera_indexes)
+                next_index = camera_indexes[next_position]
+                
+                if camera.switch_camera(next_index):
+                    with lock:
+                        state["frame"] = None
+                        state["annotated_frame"] = None
+                        state["detected_objects"] = []
+                        state["frame_id"] += 1
+                    print(f"Active camera: {next_index}")
+
+
+
+
 
             # ---------------------------------
             # SPACEBAR RECORDING

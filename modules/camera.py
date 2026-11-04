@@ -43,6 +43,25 @@ class Camera:
 
         return frame
 
+    def switch_camera(self, camera_index):
+        print(f"\nSwitching to camera {camera_index}...")
+        new_cap = cv2.VideoCapture(camera_index)
+        if not new_cap.isOpened():
+            new_cap.release()
+            print(f"Cannot open camera {camera_index}")
+            return False
+        new_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        new_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        old_cap = self.cap
+        self.cap = new_cap
+        self.camera_index = camera_index
+        
+        if old_cap is not None:
+            old_cap.release()
+
+        print(f"Camera switched to index {camera_index}")
+        return True
+
     def detect(self, frame):
 
         results = self.model.predict(
