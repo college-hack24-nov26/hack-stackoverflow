@@ -194,33 +194,64 @@ def main():
             else:
                 cv2.imshow("AVAQ AI Assistant", display_frame)
                 
+            # # key = cv2.waitKey(1) & 0xFF
+
+            # if key == ord("q") or key == 27:
+            #     break
+
+
+            # key = cv2.waitKey(1) & 0xFF
+            # # QUIT AVAQ
+            # # if key == ord("q") or key == 27:
+            # #     break
+            # # SWITCH CAMERA USING C
+            # if key == ord("c"):
+            #     current_index = camera.camera_index
+            #     try:
+            #         current_position = camera_indexes.index(current_index)
+            #     except ValueError:
+            #         current_position = 0
+                
+            #     next_position = (current_position + 1) % len(camera_indexes)
+            #     next_index = camera_indexes[next_position]
+                
+            #     if camera.switch_camera(next_index):
+            #         with lock:
+            #             state["frame"] = None
+            #             state["annotated_frame"] = None
+            #             state["detected_objects"] = []
+            #             state["frame_id"] += 1
+            #         print(f"Active camera: {next_index}")
+
+
+            # ---------------------------------
+            # KEYBOARD CONTROLS
+            # ---------------------------------
             key = cv2.waitKey(1) & 0xFF
 
+            # QUIT AVAQ
             if key == ord("q") or key == 27:
                 break
 
-
-            key = cv2.waitKey(1) & 0xFF
-            # QUIT AVAQ
-            # if key == ord("q") or key == 27:
-            #     break
-            # SWITCH CAMERA USING C
+# SWITCH CAMERA USING C
             if key == ord("c"):
                 current_index = camera.camera_index
+
                 try:
                     current_position = camera_indexes.index(current_index)
                 except ValueError:
                     current_position = 0
-                
+
                 next_position = (current_position + 1) % len(camera_indexes)
                 next_index = camera_indexes[next_position]
-                
+
                 if camera.switch_camera(next_index):
                     with lock:
                         state["frame"] = None
                         state["annotated_frame"] = None
                         state["detected_objects"] = []
                         state["frame_id"] += 1
+
                     print(f"Active camera: {next_index}")
 
 
@@ -316,3 +347,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
